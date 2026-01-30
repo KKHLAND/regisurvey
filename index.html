@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>신입생 설문 대시보드</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- 차트 라이브러리 추가 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700;800;900&display=swap');
+        
+        body { 
+            font-family: 'Pretendard', sans-serif; 
+            margin: 0;
+            background-color: #f4f7fa; 
+            color: #1e293b;
+        }
+
+        /* 이미지의 핵심 색상: 딥 블루 그라데이션 헤더 */
+        .header-section {
+            background: linear-gradient(90deg, #0f2b61 0%, #1e4ba1 50%, #0f2b61 100%);
+            height: 340px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-top: 50px;
+            text-align: center;
+        }
+
+        .premium-tag {
+            background: linear-gradient(90deg, #f59e0b, #fbbf24);
+            color: #451a03;
+            font-size: 10px;
+            font-weight: 800;
+            padding: 2px 10px;
+            border-radius: 99px;
+            margin-left: 8px;
+        }
+
+        /* 중앙 플로팅 레이아웃 */
+        .floating-bar {
+            margin-top: -60px;
+            z-index: 10;
+        }
+
+        .main-card {
+            background: white;
+            border-radius: 2rem;
+            box-shadow: 0 15px 35px -5px rgba(0, 0, 0, 0.08);
+            border: 1px solid #eef2f6;
+        }
+
+        /* 다채로운 대시보드 카드 배경색 */
+        .card-stat-1 { background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%); border: 1px solid #7dd3fc; }
+        .card-stat-2 { background: linear-gradient(135deg, #fff1f2 0%, #fecdd3 100%); border: 1px solid #fda4af; }
+        .card-stat-3 { background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); border: 1px solid #6ee7b7; }
+        .card-stat-4 { background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); border: 1px solid #fcd34d; }
+
+        .custom-scrollbar::-webkit-scrollbar { width: 5px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+
+        .btn-upload {
+            background-color: #3b82f6;
+            transition: all 0.2s;
+        }
+        .btn-upload:hover {
+            background-color: #2563eb;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(59, 130, 246, 0.3);
+        }
+
+        /* 특이사항 행 강조 */
+        .row-risk { background-color: #fff1f2; }
+        .row-sep { background-color: #fffbeb; }
+    </style>
+</head>
+<body class="antialiased">
+
+    <!-- 상단 딥 블루 헤더 -->
+    <div class="header-section px-4">
+        <div class="flex items-center mb-4">
+            <div class="bg-blue-600/30 backdrop-blur-md p-1.5 rounded-lg mr-2 border border-white/20">
+                <i class="fa-solid fa-chart-pie text-white text-xs"></i>
+            </div>
+            <span class="text-white/90 text-xs font-bold tracking-widest uppercase">Student Analytics Studio</span>
+            <span class="premium-tag">PREMIUM</span>
+        </div>
+        <h1 class="text-white text-2xl md:text-4xl font-black mb-4 tracking-tight">신입생 설문 데이터 대시보드</h1>
+        <p class="text-white/60 text-sm md:text-base font-medium max-w-xl text-center">
+            업로드된 데이터를 시각적으로 분석하고 특이사항을 자동으로 분류합니다.
+        </p>
+    </div>
+
+    <!-- 플로팅 액션 바 -->
+    <div class="max-w-6xl mx-auto px-4 floating-bar">
+        <div class="bg-white p-5 rounded-[2rem] shadow-2xl flex flex-wrap items-center justify-between gap-4 border border-slate-100">
+            <div class="flex items-center gap-4">
+                <div class="hidden md:flex flex-col text-left">
+                    <span class="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Status</span>
+                    <span id="statusText" class="text-sm font-bold text-slate-700">연결 대기 중</span>
+                </div>
+                <div class="h-8 w-[1px] bg-slate-100 hidden md:block"></div>
+                <div class="flex flex-col text-left">
+                    <span class="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Data Load</span>
+                    <span id="recordCountDisplay" class="text-sm font-bold text-blue-600">0 건</span>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-3">
+                <button onclick="document.getElementById('fileInput').click()" class="btn-upload flex items-center gap-2 px-6 py-3 text-white rounded-xl text-sm font-bold shadow-lg">
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                    <span>신입생 데이터 업로드</span>
+                </button>
+                <input type="file" id="fileInput" class="hidden" accept=".csv, .xlsx, .xls">
+                
+                <button onclick="resetData()" id="resetBtn" class="hidden flex items-center gap-2 px-4 py-3 text-slate-400 hover:text-rose-500 font-bold text-sm transition-colors">
+                    <i class="fa-solid fa-rotate-right"></i>
+                    초기화
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 메인 콘텐츠 영역 -->
+    <main class="max-w-7xl mx-auto px-4 mt-10 pb-20">
+        
+        <!-- 초기 빈 상태 화면 -->
+        <div id="empty-state" class="main-card py-24 flex flex-col items-center justify-center text-center">
+            <div class="w-20 h-20 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mb-6 shadow-inner">
+                <i class="fa-solid fa-file-waveform text-3xl"></i>
+            </div>
+            <h2 class="text-2xl font-bold text-slate-800 mb-2">분석할 파일을 준비해주세요</h2>
+            <p class="text-slate-400 max-w-sm mx-auto leading-relaxed">
+                엑셀 파일(.xlsx)을 업로드하면 성별, 출신학교,<br>비고란의 특이사항을 자동으로 분석합니다.
+            </p>
+        </div>
+
+        <!-- 대시보드 뷰 -->
+        <div id="dashboard-view" class="hidden space-y-8 animate-in fade-in duration-700">
+            
+            <!-- 지표 그리드 -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                <div class="card-stat-1 p-6 rounded-3xl transition-transform hover:scale-105">
+                    <p class="text-[10px] font-bold text-blue-500 uppercase tracking-widest mb-3">총 인원</p>
+                    <div class="flex items-center justify-between">
+                        <span id="stat-total" class="text-3xl font-black text-blue-900">-</span>
+                        <div class="text-blue-500"><i class="fa-solid fa-users text-2xl"></i></div>
+                    </div>
+                </div>
+                <div class="card-stat-2 p-6 rounded-3xl transition-transform hover:scale-105">
+                    <p class="text-[10px] font-bold text-rose-500 uppercase tracking-widest mb-3">여학생 비율</p>
+                    <div class="flex items-center justify-between">
+                        <span id="stat-gender" class="text-3xl font-black text-rose-900">-</span>
+                        <div class="text-rose-500"><i class="fa-solid fa-venus text-2xl"></i></div>
+                    </div>
+                </div>
+                <div class="card-stat-3 p-6 rounded-3xl transition-transform hover:scale-105">
+                    <p class="text-[10px] font-bold text-emerald-600 uppercase tracking-widest mb-3">최다 출신교</p>
+                    <div class="flex items-center justify-between">
+                        <span id="stat-school" class="text-2xl font-black text-emerald-900 truncate max-w-[120px]">-</span>
+                        <div class="text-emerald-500"><i class="fa-solid fa-school text-2xl"></i></div>
+                    </div>
+                </div>
+                <div class="card-stat-4 p-6 rounded-3xl transition-transform hover:scale-105">
+                    <p class="text-[10px] font-bold text-amber-600 uppercase tracking-widest mb-3">특이사항 보고</p>
+                    <div class="flex items-center justify-between">
+                        <span id="stat-alerts" class="text-3xl font-black text-amber-900">-</span>
+                        <div class="text-amber-500"><i class="fa-solid fa-triangle-exclamation text-2xl"></i></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 시각화 영역 -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div class="main-card p-8">
+                    <h4 class="font-bold text-slate-800 mb-6 flex items-center gap-2">
+                        <i class="fa-solid fa-chart-column text-blue-500"></i> 출신 중학교 상위 5개교
+                    </h4>
+                    <div id="schoolChartContainer" class="h-64">
+                        <canvas id="schoolBarChart"></canvas>
+                    </div>
+                </div>
+                <div class="main-card p-8">
+                    <h4 class="font-bold text-slate-800 mb-6 flex items-center gap-2">
+                        <i class="fa-solid fa-chart-pie text-pink-500"></i> 성별 분포
+                    </h4>
+                    <div id="genderChartContainer" class="h-64 flex justify-center">
+                        <canvas id="genderPieChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 리스트 카드 -->
+            <div class="main-card overflow-hidden">
+                <div class="p-6 border-b border-slate-50 flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50/30">
+                    <h3 class="font-bold text-slate-800 flex items-center gap-2">
+                        <i class="fa-solid fa-address-book text-blue-600"></i> 학생 상세 명단 (특이사항 자동 강조)
+                    </h3>
+                    <div class="flex items-center gap-2 w-full sm:w-auto">
+                        <div class="relative w-full">
+                            <i class="fa-solid fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 text-xs"></i>
+                            <input type="text" id="searchInput" placeholder="이름/학교 검색" class="pl-8 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 outline-none transition-all w-full">
+                        </div>
+                        <select id="filterType" class="px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold outline-none cursor-pointer">
+                            <option value="All">전체</option>
+                            <option value="Risk">집중관찰</option>
+                            <option value="Separation">분리요청</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="overflow-x-auto max-h-[600px] custom-scrollbar">
+                    <table class="w-full text-left">
+                        <thead class="bg-slate-50/80 sticky top-0 z-10">
+                            <tr>
+                                <th class="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">성명 / 정보</th>
+                                <th class="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest text-center border-b border-slate-100">성별</th>
+                                <th class="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest text-center border-b border-slate-100">출신교</th>
+                                <th class="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">파일 내 특이사항 (비고)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="studentTableBody" class="divide-y divide-slate-50 text-sm">
+                            <!-- Dynamic -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 로딩 오버레이 -->
+    <div id="loadingOverlay" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm hidden flex items-center justify-center z-[100]">
+        <div class="bg-white p-8 rounded-[2rem] shadow-2xl flex flex-col items-center">
+            <div class="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+            <p class="font-bold text-slate-800">데이터를 정밀 분석 중입니다...</p>
+        </div>
+    </div>
+
+    <script>
+        let students = [];
+        let schoolChart = null;
+        let genderChart = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const fileInput = document.getElementById('fileInput');
+            const searchInput = document.getElementById('searchInput');
+            const filterType = document.getElementById('filterType');
+
+            if (fileInput) {
+                fileInput.addEventListener('change', (e) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+
+                    showLoading(true);
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        try {
+                            const data = new Uint8Array(event.target.result);
+                            const workbook = XLSX.read(data, { type: 'array' });
+                            const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                            const json = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
+                            processData(json);
+                        } catch (err) {
+                            console.error(err);
+                            alert("엑셀 파일을 읽는 중 오류가 발생했습니다.");
+                        } finally {
+                            showLoading(false);
+                            e.target.value = '';
+                        }
+                    };
+                    reader.readAsArrayBuffer(file);
+                });
+            }
+
+            if (searchInput) searchInput.addEventListener('input', render);
+            if (filterType) filterType.addEventListener('change', render);
+        });
+
+        function processData(rows) {
+            if (!rows || rows.length < 1) return;
+            const header = rows[0];
+            const findCol = (keys) => header.findIndex(h => keys.some(k => String(h).includes(k)));
+
+            const cols = {
+                name: findCol(['성명', '이름', '학생']),
+                dob: findCol(['생년', '생일', '일자']),
+                gender: findCol(['성별', '구분']),
+                school: findCol(['학교', '출신', '중학교']),
+                notes: findCol(['비고', '특이', '기타', '내용', '응답', '사항'])
+            };
+
+            // 기본값 보정
+            if (cols.name === -1) cols.name = 2;
+            if (cols.school === -1) cols.school = 5;
+
+            const uniqueMap = new Map();
+            rows.slice(1).forEach(row => {
+                const name = String(row[cols.name] || '').trim();
+                if (!name || name === '성명' || name === '이름' || name === 'undefined') return;
+                
+                const dob = String(row[cols.dob] || '').trim();
+                const key = `${name}_${dob}`;
+                const notes = String(row[cols.notes] || '').trim();
+                const gender = String(row[cols.gender] || '').trim();
+                const school = String(row[cols.school] || '').replace(/중학교|중$/g, '').trim();
+
+                let category = '일반';
+                if (notes.match(/학폭|학교폭력|피해|유의|관찰|문제|상담/)) category = 'Risk';
+                else if (notes.match(/쌍둥이|분리|다른반|같은반/)) category = 'Separation';
+
+                uniqueMap.set(key, { name, dob, gender, school, notes, category });
+            });
+
+            students = Array.from(uniqueMap.values());
+            if (students.length > 0) {
+                document.getElementById('empty-state')?.classList.add('hidden');
+                document.getElementById('resetBtn')?.classList.remove('hidden');
+                document.getElementById('dashboard-view')?.classList.remove('hidden');
+                
+                const statusTxt = document.getElementById('statusText');
+                if(statusTxt) statusTxt.innerText = "분석 엔진 활성";
+                
+                render();
+            } else {
+                alert("데이터를 추출하지 못했습니다. 엑셀의 헤더(성명, 학교 등)를 확인해주세요.");
+            }
+        }
+
+        function render() {
+            const searchInput = document.getElementById('searchInput');
+            const filterType = document.getElementById('filterType');
+            const searchTerm = (searchInput?.value || '').toLowerCase();
+            const filterValue = filterType?.value || 'All';
+
+            const filtered = students.filter(s => {
+                const match = s.name.includes(searchTerm) || s.school.includes(searchTerm);
+                if (filterValue === 'All') return match;
+                return match && s.category === filterValue;
+            });
+
+            // 통계
+            const femaleCount = students.filter(s => s.gender.includes('여') || s.gender === 'F').length;
+            const maleCount = students.length - femaleCount;
+            const riskCount = students.filter(s => s.category !== '일반').length;
+
+            updateText('stat-total', `${students.length}명`);
+            updateText('stat-gender', students.length > 0 ? `${Math.round((femaleCount / students.length) * 100)}%` : "0%");
+            updateText('stat-alerts', `${riskCount}건`);
+            updateText('recordCountDisplay', `${students.length} 건`);
+
+            const schoolMap = {};
+            students.forEach(s => schoolMap[s.school] = (schoolMap[s.school] || 0) + 1);
+            const sortedSchools = Object.entries(schoolMap).sort((a,b) => b[1] - a[1]);
+            updateText('stat-school', sortedSchools[0] ? sortedSchools[0][0] : "-");
+
+            // 테이블 렌더링
+            const tbody = document.getElementById('studentTableBody');
+            if (tbody) {
+                tbody.innerHTML = filtered.map(s => `
+                    <tr class="${s.category === 'Risk' ? 'row-risk' : (s.category === 'Separation' ? 'row-sep' : 'hover:bg-slate-50')} transition-colors">
+                        <td class="px-6 py-5">
+                            <div class="font-bold text-slate-900 text-base">${s.name}</div>
+                            <div class="text-[10px] text-slate-400 font-mono">${s.dob}</div>
+                        </td>
+                        <td class="px-6 py-5 text-center">
+                            <span class="px-3 py-1 rounded-lg text-[10px] font-black ${s.gender.includes('남') ? 'bg-blue-100 text-blue-600' : 'bg-rose-100 text-rose-600'}">
+                                ${s.gender.includes('남') ? '남' : '여'}
+                            </span>
+                        </td>
+                        <td class="px-6 py-5 text-center font-semibold text-slate-600">${s.school}중</td>
+                        <td class="px-6 py-5">
+                            ${s.notes ? `
+                                <div class="bg-white/60 border border-slate-200 p-3 rounded-xl text-slate-700 leading-relaxed text-xs shadow-sm">
+                                    ${s.category === 'Risk' ? '<span class="text-rose-600 font-bold">[관찰필요]</span> ' : ''}
+                                    ${s.category === 'Separation' ? '<span class="text-amber-600 font-bold">[분리요청]</span> ' : ''}
+                                    ${s.notes}
+                                </div>
+                            ` : '<span class="text-slate-300 italic">없음</span>'}
+                        </td>
+                    </tr>
+                `).join('');
+            }
+
+            // 차트 업데이트
+            initCharts(sortedSchools, maleCount, femaleCount);
+        }
+
+        function initCharts(sortedSchools, male, female) {
+            const canvasBar = document.getElementById('schoolBarChart');
+            const canvasPie = document.getElementById('genderPieChart');
+            if (!canvasBar || !canvasPie) return;
+
+            const ctxBar = canvasBar.getContext('2d');
+            if (schoolChart) schoolChart.destroy();
+            
+            const top5 = sortedSchools.slice(0, 5);
+            schoolChart = new Chart(ctxBar, {
+                type: 'bar',
+                data: {
+                    labels: top5.map(x => x[0] + '중'),
+                    datasets: [{
+                        label: '학생 수',
+                        data: top5.map(x => x[1]),
+                        backgroundColor: '#3b82f6',
+                        borderRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+                }
+            });
+
+            const ctxPie = canvasPie.getContext('2d');
+            if (genderChart) genderChart.destroy();
+            
+            genderChart = new Chart(ctxPie, {
+                type: 'doughnut',
+                data: {
+                    labels: ['남', '여'],
+                    datasets: [{
+                        data: [male, female],
+                        backgroundColor: ['#60a5fa', '#fb7185'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom' }
+                    }
+                }
+            });
+        }
+
+        function updateText(id, txt) {
+            const el = document.getElementById(id);
+            if (el) el.innerText = txt;
+        }
+
+        function showLoading(show) {
+            const el = document.getElementById('loadingOverlay');
+            if (el) el.classList.toggle('hidden', !show);
+        }
+
+        function resetData() {
+            if (confirm("모든 데이터를 초기화하고 처음으로 돌아갈까요?")) location.reload();
+        }
+    </script>
+</body>
+</html>
