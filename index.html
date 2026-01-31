@@ -556,9 +556,10 @@
                 const dob = String(row['생년월일(8자리)'] || '').trim();
                 const key = `${name}_${dob}`;
                 
-                const phone = formatPhone(row['본인연락처(휴대폰)']);
-                const parentPhone = formatPhone(row['보호자연락처(휴대폰)']);
-                const parentPhone2 = formatPhone(row['보호자연락처(추가)']);
+                // 파일 형식에 따른 유연한 필드 참조 (공백 유무 지원)
+                const phone = formatPhone(row['본인 연락처(휴대폰)'] || row['본인연락처(휴대폰)']);
+                const parentPhone = formatPhone(row['보호자 연락처(휴대폰)'] || row['보호자연락처(휴대폰)']);
+                const parentPhone2 = formatPhone(row['보호자 연락처(추가)'] || row['보호자연락처(추가)']);
                 const sepRequestRaw = String(row['고입 배정 신청 시 분리배정 요청 여부'] || '').trim();
                 const notesRaw = String(row['학급 편성 시 요청사항'] || '').trim();
                 
@@ -706,7 +707,7 @@
             document.getElementById('filterSchool').value = 'All';
             document.getElementById('filterCategory').value = 'All';
             document.getElementById('filterContact').value = 'All';
-            document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+            document.querySelectorAll('.filter-chip').forEach(c => classList.remove('active'));
             document.querySelector('[data-filter="all"]')?.classList.add('active');
             applyFilters();
         }
